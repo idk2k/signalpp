@@ -147,10 +147,21 @@ private:
 
     template <typename... Args>
     void emit(Args&&... args) {
-        emit_locker lock{slots_mutex};
-        for (auto& f : slots_) {
-            f(std::forward<Args>(args)...);
+        std::vector<slot_type> slots_snapshot;
+
+        {
+            std::unique_lock<mutex_type> lock {state_->mutex};
+
+            slots_snapshot.reserve(state_->slots.size());
+            for (const auto& [id, slot] : state_->slots) {
+                slots_snapshot.push_back(slot);
+            }
         }
+
+        for (auto& slot : slots_snapshot) {
+            slot(std::forward<Args>(args)...);
+        }
+
     }
 
     template <typename... CallArgs>
