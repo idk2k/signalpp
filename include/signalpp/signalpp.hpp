@@ -17,7 +17,7 @@ struct empty_mutex {
     void unlock_shared() {}
 };
 
-template <typename FuncSig, bool thread_safe = true, bool emit_thread_safe = false>
+template <typename FuncSig, bool thread_safe = true>
 class signalpp_impl {
 private:
     using mutex_type = std::conditional_t<thread_safe, std::shared_mutex, empty_mutex>;
@@ -127,7 +127,7 @@ private:
     }
 
     template <class C, typename R, typename... Args>
-    signalpp_connection connect(C* object, R(C::* member_func)(Args...)) {
+    signalpp_connection connect(C* object, R (C::*member_func)(Args...)) {
         return connect([object, member_func](Args... args) -> R {
             return (object->*member_func)(std::forward<Args>(args)...);
         });
@@ -140,7 +140,7 @@ private:
         });
     }
 
-    // Subscribe slot without possible ability to disconnect it 
+    // Subscribe slot without possible ability to disconnect it
     signalpp_impl& operator+=(slot_type slot) {
         connect(std::move(slot));
         return *this;
@@ -151,7 +151,7 @@ private:
         std::vector<slot_type> slots_snapshot;
 
         {
-            std::unique_lock<mutex_type> lock {state_->mutex};
+            std::unique_lock<mutex_type> lock{state_->mutex};
 
             slots_snapshot.reserve(state_->slots.size());
             for (const auto& [id, slot] : state_->slots) {
@@ -162,7 +162,6 @@ private:
         for (auto& slot : slots_snapshot) {
             slot(std::forward<Args>(args)...);
         }
-
     }
 
     template <typename... CallArgs>
@@ -190,11 +189,10 @@ private:
     }
 };
 
-// Public interfaces
 template <typename FuncSig>
-using signalpp = signalpp_impl<FuncSig, false, false>;
+using signalpp = signalpp_impl<FuncSig, false>;
+
 template <typename FuncSig>
-using signalpp_threadsafe = signalpp_impl<FuncSig, true, false>;
-template <typename FuncSig>
-using signalpp_threadsafe_emit = signalpp_impl<FuncSig, true, true>;
+using signalpp_threadsafe = signalpp_impl<FuncSig, true>;
+
 } // namespace signalpp
