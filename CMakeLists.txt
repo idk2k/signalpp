@@ -11,9 +11,3 @@ target_include_directories(${PROJECT_NAME}
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include/${PROJECT_NAME}>
 )
-
-# install is not needed here, but acturlly its cool
-# install(
-#     DIRECTORY include/ 
-#     DESTINATION include/${PROJECT_NAME}
-# )

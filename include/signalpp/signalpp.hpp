@@ -1,5 +1,9 @@
 #pragma once
 
+#include <cstdint>
+#include <memory>
+#include <utility>
+#include <vector>
 #include <functional>
 #include <list>
 #include <tuple>
@@ -13,28 +17,28 @@ struct empty_mutex {
     void unlock_shared() {}
 };
 
-template <
-    typename FuncSig,
-    bool thread_safe = true,
-    bool emit_thread_safe = false>
+template <typename FuncSig, bool thread_safe = true, bool emit_thread_safe = false>
 class signalpp_impl {
-    using mutex_type =
-        std::conditional_t<thread_safe, std::shared_mutex, empty_mutex>;
-    using emit_locker = std::conditional_t<
-        thread_safe,
-        std::unique_lock<mutex_type>,
-        std::shared_lock<mutex_type>>;
+private:
+    using mutex_type = std::conditional_t<thread_safe, std::shared_mutex, empty_mutex>;
+    using emit_locker = std::conditional_t<thread_safe, std::unique_lock<mutex_type>, std::shared_lock<mutex_type>>;
 
 public:
     using slot_type = std::function<FuncSig>;
     using slot_container = std::list<slot_type>;
     using slot_iterator = typename slot_container::iterator;
 
+private:
+    struct state_t {
+        slot_container slots;
+        mutex_type mutex;
+    };
+    std::shared_ptr<state_t> state_ = std::make_shared<state_t>();
+
     class signalpp_connection {
     public:
         signalpp_connection() = default;
-        signalpp_connection(std::function<void()> disconnect_func)
-            : disconnect_func_(std::move(disconnect_func)) {}
+        signalpp_connection(std::function<void()> disconnect_func) : disconnect_func_(std::move(disconnect_func)) {}
 
         signalpp_connection(const signalpp_connection&) = delete;
         signalpp_connection& operator=(const signalpp_connection&) = delete;
@@ -59,22 +63,19 @@ public:
     public:
         signalpp_scoped_connection() = default;
 
-        explicit signalpp_scoped_connection(
-            std::function<void()> disconnect_func
-        )
+        explicit signalpp_scoped_connection(std::function<void()> disconnect_func)
             : signalpp_connection(std::move(disconnect_func)) {}
 
         signalpp_scoped_connection(signalpp_scoped_connection&& other) noexcept
             : signalpp_connection(std::move(other)) {}
 
-        signalpp_scoped_connection&
-        operator=(signalpp_scoped_connection&& other) noexcept {
+        signalpp_scoped_connection& operator=(signalpp_scoped_connection&& other) noexcept {
             signalpp_connection::operator=(std::move(other));
-			return *this;
+            return *this;
         }
 
-		signalpp_scoped_connection(const signalpp_scoped_connection&) = delete;
-		signalpp_scoped_connection& operator=(const signalpp_scoped_connection&) = delete;
+        signalpp_scoped_connection(const signalpp_scoped_connection&) = delete;
+        signalpp_scoped_connection& operator=(const signalpp_scoped_connection&) = delete;
 
         ~signalpp_scoped_connection() {
             disconnect();
@@ -82,31 +83,33 @@ public:
     };
 
     signalpp_connection connect(slot_type slot) {
-        std::unique_lock<mutex_type> lock{slots_mutex};
+        auto state = state_;
 
-        auto erase_iter = slots_.emplace(slots_.end(), std::move(slot));
+        std::unique_lock<mutex_type> lock{state->mutex};
 
-        std::function<void()> lambda = [&slots_mutes = this->slots_mutex,
-                                        &slots_ = this->slots_,
-                                        erase_iter]() -> void {
-            std::unique_lock<mutex_type> lock{slots_mutex};
-            slots_.erase(erase_iter);
+        auto it = state->slots.emplace(state->slots.end(), std::move(slot));
+
+        std::function<void()> disconnect_func = [state, it]() {
+            std::unique_lock<mutex_type> lock{state->mutex};
+            state->slots.erase(it);
         };
-        return signalpp_connection{std::move(lambda)};
+
+        return signalpp_connection{std::move(disconnect_func)};
     }
 
     signalpp_scoped_connection scoped_connect(slot_type slot) {
-        std::unique_lock<mutex_type> lock{slots_mutex};
+        auto state = state_;
 
-        auto erase_iter = slots_.emplace(slots_.end(), std::move(slot));
+        std::unique_lock<mutex_type> lock{state->mutex};
 
-        std::function<void()> lambda = [&slots_mutes = this->slots_mutex,
-                                        &slots_ = this->slots_,
-                                        erase_iter]() -> void {
-            std::unique_lock<mutex_type> lock{slots_mutex};
-            slots_.erase(erase_iter);
+        auto it = state->slots.emplace(state->slots.end(), std::move(slot));
+
+        std::function<void()> disconnect_func = [state, it]() {
+            std::unique_lock<mutex_type> lock{state->mutex};
+            state->slots.erase(it);
         };
-        return signalpp_scoped_connection{std::move(lambda)};
+
+        return signalpp_scoped_connection{std::move(disconnect_func)};
     }
 
     template <class C, typename R, typename... Args>
@@ -117,8 +120,7 @@ public:
     }
 
     template <class C, typename R, typename... Args>
-    signalpp_scoped_connection
-    scoped_connect(C* class_ptr, R (C::*member_func)(Args...)) {
+    signalpp_scoped_connection scoped_connect(C* class_ptr, R (C::*member_func)(Args...)) {
         return scoped_connect([class_ptr, member_func](Args&&... args) -> R {
             return (class_ptr->*member_func)(std::forward<Args>(args)...);
         });
@@ -137,42 +139,17 @@ public:
         }
     }
 
-    // Emit iteration
-
-    // template<typename... CallArgs>
-    // class signal_iterator {
-    // public:
-    // 	signal_iterator(slot_iterator iter, mutex_type& slots_mutex_,
-    // std::tuple<CallArgs&&...>& args) : 		iter(iter),
-    // slots_mutex_(slots_mutex_), stored_args_(args) {} private: slot_iterator
-    // iter_; 	mutex_type& slots_mutex_; 	std::tuple<CallArgs&&...>
-    // stored_args_;
-    // };
-
     template <typename... CallArgs>
     class iterate {
     public:
-        iterate(
-            slot_container& slots_,
-            mutex_type& slots_mutex,
-            CallArgs&&... args
-        )
-            : slots_(slots_), slots_mutex_(slots_mutex_),
-              stored_args_(std::forward<CallArgs>(args)...) {}
+        iterate(slot_container& slots_, mutex_type& slots_mutex, CallArgs&&... args)
+            : slots_(slots_), slots_mutex_(slots_mutex_), stored_args_(std::forward<CallArgs>(args)...) {}
 
         auto begin() {
-            return signal_iterator<CallArgs...>(
-                slots_.begin(),
-                slots_mutex_,
-                stored_args_
-            );
+            return signal_iterator<CallArgs...>(slots_.begin(), slots_mutex_, stored_args_);
         }
         auto end() {
-            return signal_iterator<CallArgs...>(
-                slots_.end(),
-                slots_mutex_,
-                stored_args_
-            );
+            return signal_iterator<CallArgs...>(slots_.end(), slots_mutex_, stored_args_);
         }
 
     private:
@@ -183,16 +160,8 @@ public:
 
     template <typename... Args>
     iterate<Args...> emit_iterate(Args&&... args) {
-        return iterate<Args...>(
-            slots_,
-            slots_mutex,
-            std::forward<Args>(args)...
-        );
+        return iterate<Args...>(slots_, slots_mutex, std::forward<Args>(args)...);
     }
-
-private:
-    slot_container slots_;
-    mutex_type slots_mutex;
 };
 
 // Public interfaces
