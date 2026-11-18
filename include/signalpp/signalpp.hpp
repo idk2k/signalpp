@@ -30,9 +30,11 @@ public:
 
 private:
     struct state_t {
-        slot_container slots;
+        std::list<std::pair<std::uint64_t, slot_type>> slots;
         mutex_type mutex;
+        std::uint64_t next_id = 0;
     };
+
     std::shared_ptr<state_t> state_ = std::make_shared<state_t>();
 
     class signalpp_connection {
@@ -85,13 +87,19 @@ private:
     signalpp_connection connect(slot_type slot) {
         auto state = state_;
 
-        std::unique_lock<mutex_type> lock{state->mutex};
+        std::uint64_t id;
 
-        auto it = state->slots.emplace(state->slots.end(), std::move(slot));
+        {
+            std::unique_lock<mutex_type> lock{state->mutex};
+            id = state->next_id++;
+            state->slots.emplace_back(id, std::move(slot));
+        }
 
         std::function<void()> disconnect_func = [state, it]() {
             std::unique_lock<mutex_type> lock{state->mutex};
-            state->slots.erase(it);
+            state->slots.remove_if([id](const auto& item) {
+                return item.first == id;
+            });
         };
 
         return signalpp_connection{std::move(disconnect_func)};
@@ -100,13 +108,19 @@ private:
     signalpp_scoped_connection scoped_connect(slot_type slot) {
         auto state = state_;
 
-        std::unique_lock<mutex_type> lock{state->mutex};
+        std::uint64_t id;
 
-        auto it = state->slots.emplace(state->slots.end(), std::move(slot));
+        {
+            std::unique_lock<mutex_type> lock{state->mutex};
+            id = state->next_id++;
+            state->slots.emplace_back(id, std::move(slot));
+        }
 
         std::function<void()> disconnect_func = [state, it]() {
             std::unique_lock<mutex_type> lock{state->mutex};
-            state->slots.erase(it);
+            state->slots.remove_if([id](const auto& item) {
+                return item.first == id;
+            });
         };
 
         return signalpp_scoped_connection{std::move(disconnect_func)};
