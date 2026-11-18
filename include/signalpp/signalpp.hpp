@@ -140,8 +140,9 @@ private:
         });
     }
 
+    // Subscribe slot without possible ability to disconnect it 
     signalpp_impl& operator+=(slot_type slot) {
-        connect(slot);
+        connect(std::move(slot));
         return *this;
     }
 
