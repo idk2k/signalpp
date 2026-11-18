@@ -21,7 +21,7 @@ template <typename FuncSig, bool thread_safe = true, bool emit_thread_safe = fal
 class signalpp_impl {
 private:
     using mutex_type = std::conditional_t<thread_safe, std::shared_mutex, empty_mutex>;
-    using emit_locker = std::conditional_t<thread_safe, std::unique_lock<mutex_type>, std::shared_lock<mutex_type>>;
+    using lock_type = std::unique_lock<mutex_type>;
 
 public:
     using slot_type = std::function<FuncSig>;
