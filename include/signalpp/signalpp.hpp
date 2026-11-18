@@ -28,7 +28,6 @@ public:
     using slot_container = std::list<slot_type>;
     using slot_iterator = typename slot_container::iterator;
 
-private:
     struct state_t {
         std::list<std::pair<std::uint64_t, slot_type>> slots;
         mutex_type mutex;
@@ -80,7 +79,7 @@ private:
         signalpp_scoped_connection& operator=(const signalpp_scoped_connection&) = delete;
 
         ~signalpp_scoped_connection() {
-            disconnect();
+            signalpp_connection::disconnect();
         }
     };
 
@@ -95,7 +94,7 @@ private:
             state->slots.emplace_back(id, std::move(slot));
         }
 
-        std::function<void()> disconnect_func = [state, it]() {
+        std::function<void()> disconnect_func = [state, id]() {
             std::unique_lock<mutex_type> lock{state->mutex};
             state->slots.remove_if([id](const auto& item) {
                 return item.first == id;
@@ -116,7 +115,7 @@ private:
             state->slots.emplace_back(id, std::move(slot));
         }
 
-        std::function<void()> disconnect_func = [state, it]() {
+        std::function<void()> disconnect_func = [state, id]() {
             std::unique_lock<mutex_type> lock{state->mutex};
             state->slots.remove_if([id](const auto& item) {
                 return item.first == id;
