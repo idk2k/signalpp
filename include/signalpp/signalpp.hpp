@@ -127,16 +127,16 @@ private:
     }
 
     template <class C, typename R, typename... Args>
-    signalpp_connection connect(C* class_ptr, R (C::*member_func)(Args...)) {
-        return connect([class_ptr, member_func](Args&&... args) -> R {
-            return (class_ptr->*member_func)(std::forward<Args>(args)...);
+    signalpp_connection connect(C* object, R(C::* member_func)(Args...)) {
+        return connect([object, member_func](Args... args) -> R {
+            return (object->*member_func)(std::forward<Args>(args)...);
         });
     }
 
     template <class C, typename R, typename... Args>
-    signalpp_scoped_connection scoped_connect(C* class_ptr, R (C::*member_func)(Args...)) {
-        return scoped_connect([class_ptr, member_func](Args&&... args) -> R {
-            return (class_ptr->*member_func)(std::forward<Args>(args)...);
+    signalpp_scoped_connection scoped_connect(C* object, R (C::*member_func)(Args...)) {
+        return scoped_connect([object, member_func](Args... args) -> R {
+            return (object->*member_func)(std::forward<Args>(args)...);
         });
     }
 
