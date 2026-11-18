@@ -163,30 +163,6 @@ private:
             slot(std::forward<Args>(args)...);
         }
     }
-
-    template <typename... CallArgs>
-    class iterate {
-    public:
-        iterate(slot_container& slots_, mutex_type& slots_mutex, CallArgs&&... args)
-            : slots_(slots_), slots_mutex_(slots_mutex_), stored_args_(std::forward<CallArgs>(args)...) {}
-
-        auto begin() {
-            return signal_iterator<CallArgs...>(slots_.begin(), slots_mutex_, stored_args_);
-        }
-        auto end() {
-            return signal_iterator<CallArgs...>(slots_.end(), slots_mutex_, stored_args_);
-        }
-
-    private:
-        std::tuple<CallArgs&&...> stored_args_;
-        slot_container& slots_;
-        mutex_type& slots_mutex_;
-    };
-
-    template <typename... Args>
-    iterate<Args...> emit_iterate(Args&&... args) {
-        return iterate<Args...>(slots_, slots_mutex, std::forward<Args>(args)...);
-    }
 };
 
 template <typename FuncSig>
