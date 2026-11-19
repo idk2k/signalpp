@@ -33,7 +33,3 @@ add_subdirectory(path/to/signalpp)
 
 target_link_libraries(my_app PRIVATE signalpp::signalpp)
 ```
-
-## License
-
-MIT
