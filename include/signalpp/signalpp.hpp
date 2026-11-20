@@ -1,13 +1,14 @@
 #pragma once
 
 #include <cstdint>
-#include <memory>
-#include <utility>
-#include <vector>
 #include <functional>
 #include <list>
-#include <tuple>
+#include <memory>
+#include <mutex>
 #include <shared_mutex>
+#include <type_traits>
+#include <utility>
+#include <vector>
 
 namespace signalpp {
 
@@ -79,7 +80,7 @@ public:
     private:
         std::weak_ptr<state_t> state_;
         std::uint64_t id_ = 0;
-    };
+    }; // class signalpp_connection
 
     class signalpp_scoped_connection : public signalpp_connection {
     public:
@@ -88,8 +89,7 @@ public:
         signalpp_scoped_connection(std::function<void()> disconnect_func)
             : signalpp_connection(std::move(disconnect_func)) {}
 
-        signalpp_scoped_connection(signalpp_connection&& conn) noexcept
-            : signalpp_connection(std::move(conn)) {}
+        signalpp_scoped_connection(signalpp_connection&& conn) noexcept : signalpp_connection(std::move(conn)) {}
 
         signalpp_scoped_connection& operator=(signalpp_scoped_connection&& other) noexcept {
             if (this != &other) {
@@ -105,7 +105,7 @@ public:
         ~signalpp_scoped_connection() {
             signalpp_connection::disconnect();
         }
-    };
+    }; // class signalpp_scoped_connection
 
     signalpp_connection connect(slot_type slot) {
         std::uint64_t id;
@@ -176,7 +176,7 @@ public:
     void operator()(Args... args) const {
         emit(std::forward<Args>(args)...);
     }
-};
+}; // class signalpp_impl
 
 template <typename FuncSig>
 using signalpp = signalpp_impl<FuncSig, false>;
