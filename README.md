@@ -1,9 +1,9 @@
 # signalpp
 
-![C++17](https://shields.io)
-![Header-Only](https://shields.io)
-![License](https://shields.io)
-![Platform](https://shields.io)
+![C++17](https://img.shields.io/badge/C%2B%2B-17-blue)
+![Header-Only](https://img.shields.io/badge/header--only-yes-brightgreen)
+![License](https://img.shields.io/badge/license-MIT-orange)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)
 
 A lightweight, header-only C++20 signal/slot library.
 
